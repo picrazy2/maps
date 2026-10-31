@@ -37,6 +37,9 @@
   --l-pc_districts: #ff375f;
   --l-pc_sectors: #00a3a3;
   --l-pc_units: #bf5af2;
+  --l-msoas: #a2845e;
+  --l-lsoas: #28a745;
+  --l-oas: #8e8e93;
 
   --r-xs: 10px;
   --r-sm: 14px;
@@ -95,6 +98,9 @@
   --l-pc_districts: #ff6482;
   --l-pc_sectors: #2dd4bf;
   --l-pc_units: #da8fff;
+  --l-msoas: #c2a888;
+  --l-lsoas: #30d158;
+  --l-oas: #aeaeb2;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-2: 0 4px 16px -4px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -638,3 +644,40 @@ button.row:active { background: var(--surface-3); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ── Layer groups: dropdown chips and collapsible card sections ────────────── */
+.chip .swatches { display: inline-flex; gap: 3px; margin-left: 2px; }
+.chip .swatches .swatch { width: 12px; height: 12px; border-radius: 4px; border-width: 1.5px; }
+.chip .caret { width: 16px; height: 16px; margin-left: -2px; opacity: 0.55; transition: transform 200ms var(--ease-out); }
+.chip[aria-expanded="true"] .caret { transform: rotate(180deg); }
+.chips { gap: 8px; }
+
+.menu {
+  position: fixed;
+  z-index: 45;
+  border-radius: var(--r-md);
+  padding: 6px;
+  animation: menu-in 220ms var(--ease-out) both;
+}
+.menu[data-side="above"] { transform-origin: bottom left; }
+@keyframes menu-in { from { opacity: 0; transform: scale(0.96); } }
+.menu-title { font-size: 13px; color: var(--ink-muted); padding: 6px 10px 4px; }
+.menu .row { border-radius: var(--r-sm); min-height: 50px; padding: 6px 10px; }
+.menu .row + .row::before { left: 52px; right: 10px; }
+.menu .row:active { background: var(--accent-soft); }
+.check { width: 22px; display: grid; place-items: center; color: var(--accent); flex: none; }
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+.group-head .count { margin-left: auto; font-weight: 400; color: var(--ink-muted); }
+.group-head .chev { color: var(--ink-faint); transition: transform 220ms var(--ease-out); }
+.group-head[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.mapcard .section { margin-top: 14px; }

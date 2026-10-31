@@ -26,6 +26,15 @@ tc -e "$DEST/bounds" -Z7 -z14 --simplification=4 \
   -L '{"layer":"pc_sectors","file":"'$OUT'/pc_sectors.geojson","minzoom":11}' \
   -L '{"layer":"pc_sector_labels","file":"'$OUT'/pc_sectors_labels.geojson","minzoom":12}'
 
+# Census 2021 geographies: MSOAs, LSOAs, Output Areas.
+rm -rf "$DEST/census"
+tc -e "$DEST/census" -Z8 -z14 --simplification=4 \
+  -L '{"layer":"msoas","file":"'$OUT'/msoas.geojson","minzoom":9}' \
+  -L '{"layer":"msoa_labels","file":"'$OUT'/msoas_labels.geojson","minzoom":11}' \
+  -L '{"layer":"lsoas","file":"'$OUT'/lsoas.geojson","minzoom":10}' \
+  -L '{"layer":"lsoa_labels","file":"'$OUT'/lsoas_labels.geojson","minzoom":13}' \
+  -L '{"layer":"oas","file":"'$OUT'/oas.geojson","minzoom":12}'
+
 # Full postcode units: only rendered close in.
 rm -rf "$DEST/units"
 tc -e "$DEST/units" -Z13 -z15 --simplification=2 --no-tiny-polygon-reduction \

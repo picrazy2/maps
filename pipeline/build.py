@@ -5,6 +5,8 @@ Inputs (pipeline/raw/, gitignored; see pipeline/README.md for sources):
   lads_region.geojson    ONS Local Authority Districts (Dec 2024) BGC around London
   codepoint/Data/CSV/*.csv  OS Code-Point Open postcode centroids
   oa_population.geojson  Census 2021 Output Areas (London) with usual residents
+  oa_2021_england.geojson  ONS OA (2021) boundaries; only the OA → LSOA code/name lookup is used
+  msoa_names.csv         House of Commons Library MSOA names (msoa21cd, msoa21nm, msoa21hclnm)
 
 Outputs (pipeline/out/): one GeoJSON per layer plus label points, then
 tiles.sh turns them into PMTiles under public/london/data/.
@@ -126,6 +128,38 @@ gla = gpd.GeoDataFrame(
      "boroughs": [len(boroughs)], "wards": [len(wards)]},
     geometry=[gla_geom], crs=BNG)
 
+# ── Census 2021 output geographies: OA → LSOA → MSOA (they nest exactly) ───────
+look = gpd.read_file(RAW / "oa_2021_england.geojson", ignore_geometry=True,
+                     columns=["OA21CD", "LSOA21CD", "LSOA21NM"])
+hcl = pd.read_csv(RAW / "msoa_names.csv", encoding="utf-8-sig")
+oas = oa.merge(look, on="OA21CD")
+oas["lad"] = oas.LSOA21NM.str.rsplit(" ", n=1).str[0]
+oas = oas[oas.lad.isin(set(boroughs.name))].copy()
+oas["msoa_nm"] = oas.LSOA21NM.str[:-1]
+oas = oas.merge(hcl[["msoa21cd", "msoa21nm", "msoa21hclnm"]], left_on="msoa_nm", right_on="msoa21nm", how="left")
+oas = gpd.GeoDataFrame(oas, geometry="geometry", crs=BNG)
+b_code = dict(zip(boroughs.name, boroughs.code))
+oas["code"] = oas.OA21CD
+oas["lsoa"] = oas.LSOA21CD
+oas["area_km2"] = km2(oas.geometry)
+log(f"census: {len(oas)} OAs, {oas.msoa21cd.isna().sum()} without an MSOA match")
+
+
+def census_dissolve(key, extra):
+    g = oas.dissolve(by=key, method="coverage", aggfunc={"population": "sum", "OA21CD": "count", **extra})
+    g = g.reset_index().rename(columns={key: "code", "OA21CD": "oas"})
+    g["geometry"] = shapely.make_valid(g.geometry.values)
+    g["area_km2"] = km2(g.geometry)
+    g["borough_code"] = g.lad.map(b_code)
+    return g
+
+
+lsoas = census_dissolve("LSOA21CD", {"LSOA21NM": "first", "msoa21cd": "first", "msoa21hclnm": "first", "lad": "first"})
+lsoas = lsoas.rename(columns={"LSOA21NM": "name", "msoa21cd": "msoa", "msoa21hclnm": "msoa_name", "lad": "borough"})
+msoas = census_dissolve("msoa21cd", {"msoa21nm": "first", "msoa21hclnm": "first", "lad": "first", "LSOA21CD": "nunique"})
+msoas = msoas.rename(columns={"msoa21hclnm": "name", "msoa21nm": "ons_name", "lad": "borough", "LSOA21CD": "lsoas"})
+log(f"census: {len(lsoas)} LSOAs, {len(msoas)} MSOAs")
+
 # ── Postcodes ─────────────────────────────────────────────────────────────────
 csvs = sorted((RAW / "codepoint").rglob("Data/CSV/*.csv"))
 cols = ["pc", "pqi", "e", "n", "country", "nhs_r", "nhs_ha", "county", "district", "ward"]
@@ -217,6 +251,10 @@ for gdf, name in [(gla, "gla"), (boroughs, "boroughs"), (wards, "wards")]:
     write(gdf, name, ["code", "name"])
 for gdf, name in [(areas, "pc_areas"), (districts, "pc_districts"), (sectors, "pc_sectors")]:
     write(gdf, name, ["code"])
+write(msoas, "msoas", ["code", "name"])
+write(lsoas, "lsoas", ["code", "name"])
+# OAs aren't in the search index (26k of them), so their tiles carry the card stats.
+write(oas, "oas", ["code", "lsoa", "population", "area_km2"])
 cell_units["shared"] = np.where(cell_units.postcodes.str.contains("·"), cell_units.postcodes, "")
 cell_units.to_crs(WGS)[["code", "shared", "geometry"]].to_file(
     OUT / "pc_units.geojson", driver="GeoJSON", COORDINATE_PRECISION=6)
@@ -255,6 +293,10 @@ index = (
           ["name", "postcodes", "districts", "population", "area_km2", "in_london_pct"])
     + idx(districts, "pc_district", lambda r: r["code"], lambda r: f"Postcode district · {first(r['boroughs'])}",
           ["area", "postcodes", "sectors", "population", "area_km2", "in_london_pct", "boroughs"])
+    + idx(msoas, "msoa", lambda r: r["name"], lambda r: f"MSOA · {r['ons_name']} · {r['borough']}",
+          ["ons_name", "borough", "borough_code", "population", "area_km2", "lsoas", "oas"])
+    + idx(lsoas, "lsoa", lambda r: r["name"], lambda r: f"LSOA · {r['msoa_name']}",
+          ["msoa", "borough_code", "population", "area_km2", "oas"])
     + idx(sectors, "pc_sector", lambda r: r["code"], lambda r: f"Postcode sector · {first(r['boroughs'])}",
           ["district", "postcodes", "population", "area_km2", "in_london_pct", "boroughs"])
 )

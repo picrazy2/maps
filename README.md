@@ -11,7 +11,8 @@ Greater London with switchable, clickable boundary layers:
 | Greater London, boroughs | ONS Local Authority Districts, December 2024 (BGC) |
 | Wards | ONS Wards, December 2024 (BGC) |
 | Postcode areas / districts / sectors / units | Voronoi cells around OS Code-Point Open postcode centroids, clipped to land and dissolved upward. Approximate, not official boundaries. |
-| Residents | Census 2021 usual residents by Output Area, summed by centroid |
+| Output Areas, LSOAs, MSOAs | ONS Census 2021 OAs, dissolved upward (they nest exactly); MSOA names from the [House of Commons Library](https://houseofcommonslibrary.github.io/msoanames/) |
+| Residents | Census 2021 usual residents by Output Area, apportioned to other layers by area share |
 
 Unit details (ward, constituency, LSOA and so on) come live from [postcodes.io](https://postcodes.io).
 Place search uses Google Places Autocomplete (New) through `functions/london/api/places/*`, so
@@ -27,6 +28,8 @@ Esri imagery for satellite); `functions/` are Pages Functions.
 #  wards_london.geojson, lads_region.geojson   ONS ArcGIS FeatureServer queries (see build.py)
 #  codepoint/                                  unzipped OS Code-Point Open (CSV)
 #  oa_population.geojson                       Census 2021 OAs (London) with a `population` column
+#  oa_2021_england.geojson                     ONS OA 2021 boundaries (for the OA → LSOA lookup)
+#  msoa_names.csv                              HoCL MSOA names
 python pipeline/build.py      # needs geopandas + shapely 2.1
 bash pipeline/tiles.sh        # needs tippecanoe; writes public/london/data/
 ```

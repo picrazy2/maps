@@ -28,25 +28,44 @@ const OVERLAYS = [
   { id: "pc_units", kind: "pc_unit", name: "Full postcodes", hint: "E1 6AN, from street level", src: "units",
     label: "pc_units", field: "code", min: 13, labelMin: 16, width: [13, 0.3, 17, 1.2],
     labelSize: [16, 10, 18, 12] },
+  { id: "msoas", kind: "msoa", name: "MSOAs", hint: "Middle layer super output areas", src: "census",
+    label: "msoa_labels", field: "name", min: 9, labelMin: 11.5, width: [9, 0.6, 15, 1.8],
+    labelSize: [11.5, 10.5, 15, 13] },
+  { id: "lsoas", kind: "lsoa", name: "LSOAs", hint: "Lower layer super output areas", src: "census",
+    label: "lsoa_labels", field: "name", min: 10, labelMin: 13.5, width: [10, 0.4, 16, 1.3],
+    labelSize: [13.5, 10, 16, 12] },
+  { id: "oas", kind: "oa", name: "Output areas", hint: "Smallest census areas, from street level", src: "census",
+    label: "oas", field: "code", min: 12, labelMin: 16, width: [12, 0.3, 17, 1], labelSize: [16, 10, 18, 11] },
+];
+// How layers are grouped in the chips and the Choose Map card.
+const GROUPS = [
+  { id: "admin", name: "Administrative", short: "Admin", layers: ["gla", "boroughs", "wards"] },
+  { id: "postcodes", name: "Postcodes", short: "Postcodes", layers: ["pc_areas", "pc_districts", "pc_sectors", "pc_units"] },
+  { id: "census", name: "Census 2021", short: "Census", layers: ["msoas", "lsoas", "oas"] },
 ];
 const BY_ID = Object.fromEntries(OVERLAYS.map((o) => [o.id, o]));
 const BY_KIND = Object.fromEntries(OVERLAYS.map((o) => [o.kind, o]));
 // Click picks the finest visible layer; this is that order.
-const FINE = ["pc_units", "pc_sectors", "wards", "pc_districts", "boroughs", "pc_areas", "gla"];
+const FINE = ["pc_units", "oas", "lsoas", "pc_sectors", "msoas", "wards", "pc_districts", "boroughs", "pc_areas", "gla"];
+// Layers whose tiles only load while switched on (big tilesets); the rest are always hit-testable.
+const lazy = (o) => o.src !== "bounds";
 const KIND_LABEL = {
   gla: "Region", borough: "Borough", ward: "Ward", pc_area: "Postcode area",
   pc_district: "Postcode district", pc_sector: "Postcode sector", pc_unit: "Postcode", place: "Place",
+  msoa: "MSOA", lsoa: "LSOA", oa: "Output area",
 };
 const KIND_ICON = {
   gla: "map", borough: "building", ward: "grid", pc_area: "envelope", pc_district: "envelope",
-  pc_sector: "envelope", pc_unit: "envelope", place: "pin",
+  pc_sector: "envelope", pc_unit: "envelope", place: "pin", msoa: "people", lsoa: "people", oa: "people",
 };
 
 const PALETTE = {
   light: { gla: "#1c1c1e", boroughs: "#0a84ff", wards: "#5e5ce6", pc_areas: "#ff9f0a", pc_districts: "#ff375f",
-    pc_sectors: "#00a3a3", pc_units: "#bf5af2", halo: "rgba(255,255,255,0.92)", glow: "rgba(255,255,255,0.7)" },
+    pc_sectors: "#00a3a3", pc_units: "#bf5af2",
+    msoas: "#a2845e", lsoas: "#28a745", oas: "#8e8e93", halo: "rgba(255,255,255,0.92)", glow: "rgba(255,255,255,0.7)" },
   dark: { gla: "#f5f5f7", boroughs: "#409cff", wards: "#7d7aff", pc_areas: "#ffb340", pc_districts: "#ff6482",
-    pc_sectors: "#2dd4bf", pc_units: "#da8fff", halo: "rgba(0,0,0,0.75)", glow: "rgba(0,0,0,0.5)" },
+    pc_sectors: "#2dd4bf", pc_units: "#da8fff",
+    msoas: "#c2a888", lsoas: "#30d158", oas: "#aeaeb2", halo: "rgba(0,0,0,0.75)", glow: "rgba(0,0,0,0.5)" },
 };
 
 const STYLES = {
@@ -114,6 +133,7 @@ const state = {
   sel: null,
   query: "",
   recents: store.get("recents", []),
+  openGroups: store.get("openGroups", ["admin", "postcodes", "census"]),
 };
 let index = [];
 const byKey = new Map();
@@ -176,33 +196,39 @@ function overlaySpec() {
       attribution: ATTRIBUTION,
     };
   }
-  const below = [];
+  // Drawn in passes, finest boundaries first, so larger ones sit on top where they
+  // share an edge (a district line over its sectors, an area line over its districts).
+  // Selection draws above every line; labels follow the same order, and the topmost
+  // symbol layer wins collisions, so bigger boundaries keep their labels.
+  const fills = [];
+  const lines = [];
+  const sels = [];
   const top = [];
-  for (const o of OVERLAYS) {
+  for (const o of FINE.map((id) => BY_ID[id])) {
     if (!manifest.sources[o.src]) continue;
     const src = { source: `ov-${o.src}`, "source-layer": o.id, ...(o.min ? { minzoom: o.min } : {}) };
     const on = state.on.has(o.id);
     // Transparent fill doubles as the hit target, so clicks find every layer (units only when on).
-    below.push({
+    fills.push({
       id: `${o.id}-fill`, type: "fill", ...src,
-      layout: { visibility: o.id === "pc_units" ? vis(on) : "visible" },
+      layout: { visibility: lazy(o) ? vis(on) : "visible" },
       paint: {
         "fill-color": c[o.id],
         "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.13, 0],
       },
     });
     if (o.id === "gla") {
-      below.push({ id: "gla-glow", type: "line", ...src, layout: { visibility: vis(on), "line-join": "round" },
+      lines.push({ id: "gla-glow", type: "line", ...src, layout: { visibility: vis(on), "line-join": "round" },
         paint: { "line-color": c.boroughs, "line-opacity": 0.16, "line-width": interp([8, 6, 14, 12]) } });
     }
-    below.push({
+    lines.push({
       id: `${o.id}-line`, type: "line", ...src,
       layout: { visibility: vis(on), "line-join": "round", "line-cap": "round" },
       paint: { "line-color": c[o.id], "line-width": interp(o.width) },
     });
-    below.push({ id: `${o.id}-sel`, type: "fill", ...src, filter: selFilter(o),
+    sels.push({ id: `${o.id}-sel`, type: "fill", ...src, filter: selFilter(o),
       paint: { "fill-color": c[o.id], "fill-opacity": 0.2 } });
-    below.push({ id: `${o.id}-sel-line`, type: "line", ...src, filter: selFilter(o),
+    sels.push({ id: `${o.id}-sel-line`, type: "line", ...src, filter: selFilter(o),
       layout: { "line-join": "round" },
       paint: { "line-color": c[o.id], "line-width": interp([8, 2.5, 16, 4.5]) } });
     if (o.label) {
@@ -216,7 +242,6 @@ function overlaySpec() {
           "text-size": interp(o.labelSize),
           "text-max-width": 7,
           "text-padding": 4,
-          "symbol-sort-key": o.bold ? 0 : 1,
         },
         paint: {
           "text-color": o.id === "gla" ? c.gla : c[o.id],
@@ -227,6 +252,7 @@ function overlaySpec() {
       });
     }
   }
+  const below = [...fills, ...lines, ...sels];
   return { sources, below, top };
 }
 
@@ -252,7 +278,7 @@ function setOverlay(id, on, { quiet = false } = {}) {
   if (!map.getLayer(`${id}-line`)) return renderChips();
   map.setLayoutProperty(`${id}-line`, "visibility", vis(on));
   if (id === "gla") map.setLayoutProperty("gla-glow", "visibility", vis(on));
-  if (id === "pc_units") map.setLayoutProperty(`${id}-fill`, "visibility", vis(on));
+  if (lazy(o)) map.setLayoutProperty(`${id}-fill`, "visibility", vis(on));
   if (o.label) map.setLayoutProperty(`${id}-label`, "visibility", vis(on && state.labels));
   renderChips();
   renderMapCard();
@@ -294,13 +320,29 @@ function flyTo(c, zoom) {
 }
 
 // ── Hit testing ──────────────────────────────────────────────────────────────
+// Output areas aren't in the search index (26k of them); their stats ride in the tiles.
+const oaProps = new Map();
+
+// Index entry for a selection, or a stand-in for the kinds the index doesn't hold.
+function entryFor(kind, id) {
+  const e = byKey.get(`${kind}:${id}`);
+  if (e) return e;
+  if (kind === "oa") {
+    const p = oaProps.get(id) ?? {};
+    const lsoa = byKey.get(`lsoa:${p.lsoa}`);
+    return { k: "oa", id, t: id, s: lsoa ? `Output area · ${lsoa.t}` : "Output area", p };
+  }
+  return null;
+}
+
 function hitsAt(point) {
-  const layers = OVERLAYS.filter((o) => map.getLayer(`${o.id}-fill`) && (o.id !== "pc_units" || state.on.has(o.id)))
+  const layers = OVERLAYS.filter((o) => map.getLayer(`${o.id}-fill`) && (!lazy(o) || state.on.has(o.id)))
     .map((o) => `${o.id}-fill`);
   const found = new Map();
   for (const f of map.queryRenderedFeatures(point, { layers })) {
     const id = f.layer.id.slice(0, -5);
     if (!found.has(id)) found.set(id, f);
+    if (id === "oas") oaProps.set(f.properties.code, f.properties);
   }
   return FINE.filter((id) => found.has(id)).map((id) => ({ overlay: id, kind: BY_ID[id].kind, f: found.get(id) }));
 }
@@ -432,17 +474,16 @@ function renderMapCard() {
           <span class="thumb ${k}"></span>${s.name}
         </button>`).join("")}
     </div>
-    <div class="section">
-      <div class="section-title">Boundaries</div>
-      <div class="group">
-        ${OVERLAYS.map((o) => `
-          <button class="row focus-ring" role="switch" aria-checked="${state.on.has(o.id)}" data-toggle="${o.id}">
-            <span class="glyph">${swatch(o, o.id === "pc_units" || o.id === "wards" || o.id === "pc_sectors" ? "thin" : "")}</span>
-            <span class="text"><div class="title">${o.name}</div>${o.hint ? `<div class="sub">${o.hint}</div>` : ""}</span>
-            <span class="switch" aria-hidden="true"></span>
-          </button>`).join("")}
-      </div>
-    </div>
+    ${GROUPS.map((g) => {
+      const open = state.openGroups.includes(g.id);
+      const n = g.layers.filter((id) => state.on.has(id)).length;
+      return `<div class="section">
+        <button class="group-head focus-ring" aria-expanded="${open}" data-group-toggle="${g.id}">
+          ${g.name}<span class="count">${n ? `${n} on` : "Off"}</span>${icon("chevron", "icon icon-sm chev")}
+        </button>
+        ${open ? `<div class="group">${g.layers.map((id) => layerRow(BY_ID[id], "switch")).join("")}</div>` : ""}
+      </div>`;
+    }).join("")}
     <div class="section">
       <div class="group">
         <button class="row no-glyph focus-ring" role="switch" aria-checked="${state.labels}" data-action="labels">
@@ -451,6 +492,17 @@ function renderMapCard() {
         </button>
       </div>
     </div>`;
+}
+
+// One layer row, used in the Choose Map card (switch) and the chip menus (checkmark).
+function layerRow(o, mode) {
+  const on = state.on.has(o.id);
+  const trail = mode === "switch" ? `<span class="switch" aria-hidden="true"></span>`
+    : `<span class="check">${on ? icon("check", "icon icon-sm") : ""}</span>`;
+  return `<button class="row focus-ring" role="${mode === "switch" ? "switch" : "menuitemcheckbox"}" aria-checked="${on}" data-toggle="${o.id}">
+    <span class="glyph">${swatch(o, o.width[3] < 2 ? "thin" : "")}</span>
+    <span class="text"><div class="title">${o.name}</div>${o.hint ? `<div class="sub">${o.hint}</div>` : ""}</span>
+    ${trail}</button>`;
 }
 
 function toggleMapCard(force) {
@@ -462,9 +514,14 @@ function toggleMapCard(force) {
 }
 
 $("#mapcard").addEventListener("click", (e) => {
-  const t = e.target.closest("[data-style],[data-toggle],[data-action]");
+  const t = e.target.closest("[data-style],[data-toggle],[data-action],[data-group-toggle]");
   if (!t) return;
-  if (t.dataset.style) {
+  if (t.dataset.groupToggle) {
+    const id = t.dataset.groupToggle;
+    state.openGroups = state.openGroups.includes(id) ? state.openGroups.filter((g) => g !== id) : [...state.openGroups, id];
+    store.set("openGroups", state.openGroups);
+    renderMapCard();
+  } else if (t.dataset.style) {
     state.style = t.dataset.style;
     store.set("style", state.style);
     applyStyle();
@@ -479,6 +536,7 @@ $("#mapcard").addEventListener("click", (e) => {
 });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (menuGroup) return closeMenu();
   if (!$("#mapcard").classList.contains("is-hidden")) toggleMapCard(false);
   else if (state.view === "detail") closeDetail();
   else if (state.view === "search") showHome();
@@ -505,14 +563,51 @@ head.innerHTML = `
   <div id="head-detail" class="hidden"></div>`;
 
 function renderChips() {
-  $("#chips").innerHTML = OVERLAYS.map((o) => `
-    <button class="chip pressable focus-ring" style="--chip-c:var(--l-${o.id})" aria-pressed="${state.on.has(o.id)}" data-toggle="${o.id}">
-      ${swatch(o)}${o.name.replace("Postcode ", "Postcode ")}
-    </button>`).join("");
+  $("#chips").innerHTML = GROUPS.map((g) => {
+    const on = g.layers.filter((id) => state.on.has(id)).map((id) => BY_ID[id]);
+    return `<button class="chip pressable focus-ring" aria-haspopup="menu" aria-expanded="${menuGroup === g.id}"
+        aria-pressed="${on.length > 0}" style="--chip-c:var(--accent)" data-menu="${g.id}">
+      ${g.short}${on.length ? `<span class="swatches">${on.map((o) => swatch(o)).join("")}</span>` : ""}
+      ${icon("chevronDown", "icon icon-sm caret")}
+    </button>`;
+  }).join("");
+  if (menuGroup) renderMenu();
 }
+
+// Dropdown under a group chip, listing that group's layers with checkmarks.
+let menuGroup = null;
+function renderMenu() {
+  const g = GROUPS.find((x) => x.id === menuGroup);
+  const chip = document.querySelector(`[data-menu="${menuGroup}"]`);
+  const el = $("#menu");
+  if (!g || !chip) return closeMenu();
+  el.innerHTML = `<div class="menu-title">${g.name}</div>${g.layers.map((id) => layerRow(BY_ID[id], "check")).join("")}`;
+  el.classList.remove("hidden");
+  const r = chip.getBoundingClientRect();
+  const w = Math.min(300, innerWidth - 32);
+  el.style.width = `${w}px`;
+  el.style.left = `${Math.max(16, Math.min(r.left, innerWidth - w - 16))}px`;
+  const h = el.offsetHeight;
+  const below = r.bottom + 8 + h < innerHeight - 8;
+  el.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - 8 - h)}px`;
+  el.dataset.side = below ? "below" : "above";
+}
+function closeMenu() {
+  menuGroup = null;
+  $("#menu").classList.add("hidden");
+  document.querySelectorAll("[data-menu]").forEach((c) => c.setAttribute("aria-expanded", "false"));
+}
+$("#menu").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-toggle]");
+  if (t) setOverlay(t.dataset.toggle, !state.on.has(t.dataset.toggle));
+});
+document.addEventListener("pointerdown", (e) => {
+  if (menuGroup && !e.target.closest("#menu,[data-menu]")) closeMenu();
+});
 
 function setView(view) {
   state.view = view;
+  closeMenu();
   $("#head-search").classList.toggle("hidden", view === "detail");
   $("#head-detail").classList.toggle("hidden", view !== "detail");
   $("#chips").classList.toggle("hidden", view === "search");
@@ -569,23 +664,28 @@ function renderHome() {
 function aboutNote() {
   return `<p class="note">Boundaries: ONS Open Geography Portal (wards and local authorities, December 2024).
     Postcodes: OS Code-Point Open; areas, districts, sectors and unit shapes are approximations built from
-    postcode centroids, not official boundaries. Residents: Census 2021, summed from Output Areas.
+    postcode centroids, not official boundaries. Census 2021 Output Areas, LSOAs and MSOAs: ONS, with
+    MSOA names from the House of Commons Library. Residents: Census 2021, apportioned from Output Areas.
     Tap and hold the map to drop a pin. Contains OS data © Crown copyright and database right 2025;
     Royal Mail data © Royal Mail copyright and database right 2025; National Statistics data © Crown copyright 2025.</p>`;
 }
 
 // ── Search ───────────────────────────────────────────────────────────────────
-const KIND_BOOST = { gla: 6, borough: 8, ward: 2, pc_area: 3, pc_district: 5, pc_sector: 1 };
+const KIND_BOOST = { gla: 6, borough: 8, ward: 2, pc_area: 3, pc_district: 5, pc_sector: 1, msoa: 1, lsoa: -1 };
 
 function searchLocal(q) {
   const nq = norm(q);
   if (!nq) return [];
   const cq = compact(q);
-  const pcish = RE_POSTCODEISH.test(q.trim());
+  const onsCode = /^[EW]\d{4,}$/i.test(cq);
+  const pcish = !onsCode && RE_POSTCODEISH.test(q.trim());
   const scored = [];
   for (const e of index) {
     let s = 0;
-    if (e.k.startsWith("pc_")) {
+    if (onsCode) {
+      if (e.id.startsWith(cq)) s = 90 - (e.id.length - cq.length);
+      else continue;
+    } else if (e.k.startsWith("pc_")) {
       if (!pcish && e.k !== "pc_area") continue;
       const ce = compact(e.id);
       if (ce === cq) s = 100;
@@ -747,7 +847,7 @@ async function select(sel, { fly = true, recent = true } = {}) {
     pin = new maplibregl.Marker({ element: el, anchor: "bottom-left", offset: [-4, 4] }).setLngLat(sel.point).addTo(map);
   }
 
-  const entry = byKey.get(`${sel.kind}:${sel.id}`);
+  const entry = entryFor(sel.kind, sel.id);
   if (recent) {
     if (entry) addRecent({ k: entry.k, id: entry.id, t: entry.t, s: entry.s });
     else if (sel.kind === "pc_unit") addRecent({ k: "pc_unit", id: sel.id, t: sel.id, s: "Postcode" });
@@ -862,13 +962,19 @@ function parentsOf(kind, entry, id) {
     add(get("pc_area", entry.p.district.match(/^[A-Z]+/)[0]));
   }
   if (kind === "pc_district") add(get("pc_area", entry.p.area));
+  if (kind === "oa") add(get("lsoa", entry.p.lsoa));
+  if (kind === "oa" || kind === "lsoa") add(get("msoa", (out.at(-1) ?? entry).p.msoa));
+  if (["oa", "lsoa", "msoa"].includes(kind)) {
+    add(get("borough", (out.at(-1) ?? entry).p.borough_code));
+    add(get("gla", "E12000007"));
+  }
   return out;
 }
 
 function hitRows(hits, exclude) {
   return hits
     .filter((h) => !(h.kind === exclude?.kind && h.f.properties.code === exclude?.id))
-    .map((h) => byKey.get(`${h.kind}:${h.f.properties.code}`) ?? (h.kind === "pc_unit"
+    .map((h) => entryFor(h.kind, h.f.properties.code) ?? (h.kind === "pc_unit"
       ? { k: "pc_unit", id: h.f.properties.code, t: h.f.properties.code, s: "Postcode" } : null))
     .filter(Boolean);
 }
@@ -905,6 +1011,13 @@ function renderDetail(sel, entry) {
     stats.push(...popStats(p));
     _bByName ??= boroughCodeByName();
     extra += chipList("Boroughs", "borough", (p.boroughs || "").split(", ").map((n) => _bByName.get(n)).filter(Boolean));
+  }
+  if (sel.kind === "msoa") stats.push(...popStats(p), stat("LSOAs", p.lsoas), stat("Output areas", p.oas));
+  if (sel.kind === "lsoa") stats.push(...popStats(p), stat("Output areas", p.oas));
+  if (sel.kind === "oa") stats.push(...popStats(p));
+  if (["msoa", "lsoa", "oa"].includes(sel.kind)) {
+    extra += `<p class="note">ONS code ${esc(sel.id)}${p.ons_name ? ` · ${esc(p.ons_name)}` : ""}.
+      Census 2021 statistical geography; residents are usual residents on Census day.</p>`;
   }
   if (p.in_london_pct != null && p.in_london_pct < 100) {
     extra += `<p class="note">${p.in_london_pct}% of this ${KIND_LABEL[sel.kind].toLowerCase()} lies inside Greater London.</p>`;
@@ -970,9 +1083,15 @@ function renderDetail(sel, entry) {
 
 // One delegated handler for everything clickable in the sheet.
 $("#sheet").addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-sel],[data-pc],[data-place],[data-recent-place],[data-toggle],[data-action]");
+  const t = e.target.closest("[data-sel],[data-pc],[data-place],[data-recent-place],[data-toggle],[data-action],[data-menu]");
   if (!t) return;
   const d = t.dataset;
+  if (d.menu) {
+    if (menuGroup === d.menu) return closeMenu();
+    menuGroup = d.menu;
+    renderChips();
+    return t.setAttribute("aria-expanded", "true");
+  }
   if (d.toggle) return setOverlay(d.toggle, !state.on.has(d.toggle));
   if (d.sel) return select({ kind: d.sel, id: d.id });
   if (d.pc) return select({ kind: "pc_unit", id: d.pc });
@@ -1002,7 +1121,7 @@ $("#sheet").addEventListener("click", async (e) => {
       return renderHome();
     case "zoom": {
       const entry = sel && byKey.get(`${sel.kind}:${sel.id}`);
-      if (entry) fitTo(entry.b, 16);
+      if (entry) fitTo(entry.b, sel.kind === "lsoa" ? 17 : 16);
       else if (sel?.point) flyTo(sel.point, sel.kind === "pc_unit" ? 17 : 16);
       if (!sheet.wide) sheet.set("peek");
       return;
@@ -1027,6 +1146,7 @@ $("#sheet").addEventListener("click", async (e) => {
 });
 
 function onSheetChange(s) {
+  closeMenu();
   document.documentElement.style.setProperty("--sheet-visible", `${s.visibleHeight()}px`);
 }
 
