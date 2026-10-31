@@ -198,7 +198,7 @@ function overlaySpec() {
     below.push({
       id: `${o.id}-line`, type: "line", ...src,
       layout: { visibility: vis(on), "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": c[o.id], "line-width": interp(o.width), "line-opacity": 0.9 },
+      paint: { "line-color": c[o.id], "line-width": interp(o.width) },
     });
     below.push({ id: `${o.id}-sel`, type: "fill", ...src, filter: selFilter(o),
       paint: { "fill-color": c[o.id], "fill-opacity": 0.2 } });
@@ -230,12 +230,13 @@ function overlaySpec() {
   return { sources, below, top };
 }
 
-// Merge our overlays into whichever basemap is loaded: fills/lines under the
-// basemap's labels, our labels on top.
+// Merge our overlays into whichever basemap is loaded: fills/lines above every
+// basemap geometry layer (roads, bridges, 3D buildings), our labels on top. Some
+// OpenFreeMap styles interleave symbol layers early, so "before the first symbol"
+// would bury the boundaries under the road network.
 function transformStyle(_prev, next) {
   const { sources, below, top } = overlaySpec();
-  const firstSymbol = next.layers.findIndex((l) => l.type === "symbol");
-  const at = firstSymbol === -1 ? next.layers.length : firstSymbol;
+  const at = next.layers.findLastIndex((l) => l.type !== "symbol") + 1;
   const layers = [...next.layers.slice(0, at), ...below, ...next.layers.slice(at), ...top];
   return { ...next, glyphs: next.glyphs ?? GLYPHS, sources: { ...next.sources, ...sources }, layers };
 }
