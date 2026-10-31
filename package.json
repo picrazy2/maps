@@ -1,0 +1,15 @@
+{
+  "name": "maps",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "data": "python pipeline/build.py && bash pipeline/tiles.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.0"
+  },
+  "optionalDependencies": {
+    "@cloudflare/workerd-darwin-arm64": "^1.20261031.1"
+  }
+}

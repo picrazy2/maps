@@ -1,0 +1,9 @@
+/london/data/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=86400
+
+/london/data/*.pbf
+  Content-Type: application/x-protobuf
+
+/london/data/*.json
+  Cache-Control: public, max-age=300

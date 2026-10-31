@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>London Map</title>
+  <meta name="description" content="Interactive map of Greater London: boroughs, wards, and postcode areas, districts, sectors and units.">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/london/icon.svg" type="image/svg+xml">
+  <script>
+    // Stamp the theme before first paint so the glass never flashes the wrong colour.
+    document.documentElement.dataset.theme =
+      matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="/london/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+  <div id="map" aria-label="Map of Greater London"></div>
+
+  <div class="controls">
+    <div class="pill glass">
+      <button id="btn-layers" class="focus-ring" aria-label="Map and layers" aria-haspopup="dialog"></button>
+      <button id="btn-locate" class="focus-ring" aria-label="Show my location" aria-pressed="false"></button>
+    </div>
+    <div class="pill glass zoom-pill">
+      <button id="btn-zoom-in" class="focus-ring" aria-label="Zoom in"></button>
+      <button id="btn-zoom-out" class="focus-ring" aria-label="Zoom out"></button>
+    </div>
+    <button id="btn-compass" class="compass glass is-hidden focus-ring" aria-label="Reset to north"></button>
+  </div>
+
+  <section id="sheet" class="sheet glass-thick" aria-label="Search and details">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <div class="sheet-head" id="sheet-head"></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </section>
+
+  <section id="mapcard" class="mapcard glass-thick is-hidden" role="dialog" aria-modal="false" aria-labelledby="mapcard-title"></section>
+
+  <div id="tip" class="tip glass hidden" role="status"></div>
+  <div id="toast" class="toast glass is-hidden" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/london/app.js"></script>
+</body>
+</html>

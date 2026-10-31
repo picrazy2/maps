@@ -1,0 +1,9 @@
+name = "maps"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "public"
+
+# Secrets (set with `wrangler pages secret put NAME`, or in the dashboard):
+#   GOOGLE_MAPS_KEY  Places API (New) key used by functions/london/api/places/*.
+#                    Optional: without it, place search is hidden and boundary /
+#                    postcode search still works.
+# For local dev put it in .dev.vars (gitignored).
