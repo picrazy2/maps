@@ -8,9 +8,13 @@ pages_build_output_dir = "public"
 #                    postcode search still works.
 # For local dev put it in .dev.vars (gitignored).
 
-# TfL rail history (/tfl). The KV namespace holds the public summary and, behind
-# TFL_ADMIN_TOKEN, individual journeys and route overrides.
-#   TFL_ADMIN_TOKEN  set with `wrangler pages secret put TFL_ADMIN_TOKEN`; locally in .dev.vars.
+# TfL rail history (/tfl). KV holds journeys and route overrides: public to read, and only
+# TFL_ADMIN_TOKEN (upload script) or a Google account in TFL_EDITOR_EMAILS can change them.
+# Set both with `wrangler pages secret put`; locally in .dev.vars.
+[vars]
+TFL_SUPABASE_URL = "https://ihkybryikwlkppqpfnly.supabase.co"
+TFL_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imloa3licnlpa3dsa3BwcXBmbmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTEzMjQsImV4cCI6MjA5MDI2NzMyNH0.9ajw5k9zx4tUwrKZhyOgdJQ7JqLCjL9Fw3w9lTCXtZk"
+
 [[kv_namespaces]]
 binding = "TFL"
 id = "6e155346a3024921a1e84c6d7f2ab54c"

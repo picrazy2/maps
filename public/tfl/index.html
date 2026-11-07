@@ -18,12 +18,14 @@
   <link rel="stylesheet" href="/london/styles.css">
   <link rel="stylesheet" href="/tfl/tfl.css">
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.js"></script>
 </head>
 <body>
   <div id="map" aria-label="Map of rail journeys"></div>
 
   <div class="controls">
     <div class="pill glass">
+      <button id="btn-network" class="focus-ring" aria-label="Show all track and stops" aria-pressed="false"></button>
       <button id="btn-colour" class="focus-ring" aria-label="Colour track by line" aria-pressed="true"></button>
       <button id="btn-fit" class="focus-ring" aria-label="Fit all journeys"></button>
     </div>

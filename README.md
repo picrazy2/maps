@@ -46,14 +46,17 @@ Rail journeys from an Oyster card, snapped to OpenStreetMap track, with busier t
 |------|--------|----------------|
 | Lines and stopping patterns | [TfL Unified API](https://api.tfl.gov.uk) `Line/{id}/Route/Sequence` | `public/tfl/data/network.json` (public) |
 | Track geometry | OSM, via the Geofabrik England extract | `public/tfl/data/network.json` (public) |
-| Public summary: counts by track, line, station and week, with no journey times | Computed from journeys | KV `TFL`, `GET /tfl/api/summary` |
-| Journeys and route overrides | Oyster | KV `TFL`, behind `TFL_ADMIN_TOKEN` |
+| Journeys and route overrides | Oyster | KV `TFL`, public at `GET /tfl/api/journeys` |
 
-Raw journeys never go in this repo. `public/tfl/routing.js` parses journeys, infers routes and
-builds the summary, and runs both in the browser and in node. Touch-in and touch-out pairs split a
-charged journey into the trains actually taken; each is routed over TfL stopping patterns and
-ranked by how well it fits the touch times. Edit a route under the Journeys tab after unlocking it
-with the admin token.
+Journeys are public to view but stay out of this repo. `public/tfl/routing.js` parses journeys,
+infers routes and builds the totals in the browser, so nothing derived is stored. Touch-in and
+touch-out pairs split a charged journey into the trains actually taken; each is routed over TfL
+stopping patterns and ranked by how well it fits the touch times. Bus rows hold only a route number
+and boarding time, so buses are listed but not mapped.
+
+Editing a route needs Google sign-in through flightlog's Supabase project, with the email listed in
+the `TFL_EDITOR_EMAILS` secret (comma-separated). The upload script uses `TFL_ADMIN_TOKEN`.
+`https://maps.akguo.com/tfl/` must be in that project's Auth redirect URLs.
 
 ### Getting journeys
 
@@ -64,7 +67,7 @@ The website session can't support unattended collection. It expired within about
 when measured, and signing in again then needed the password. So:
 
 ```bash
-npm run tfl -- --login   # opens Chrome, sign in by hand, uploads and refreshes the summary
+npm run tfl -- --login   # opens Chrome, sign in by hand, then uploads
 ```
 
 ### Rebuilding the network

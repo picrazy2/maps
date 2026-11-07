@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Upload journeys and refresh the public summary. Without a file it only recomputes the summary.
+// Upload journeys. Without a file it only prints the current totals.
 //   node pipeline/tfl/publish.mjs [rows.txt] [--base=http://localhost:8788]
 // Reads TFL_ADMIN_TOKEN from the environment, else .dev.vars for localhost or
 // pipeline/raw/tfl/admin-token for production.
@@ -35,7 +35,6 @@ if (file) {
 }
 const net = buildNetwork(JSON.parse(readFileSync(join(ROOT, "public/tfl/data/network.json"), "utf8")));
 const { journeys, overrides } = await call("journeys");
-const summary = summarize(net, journeys, overrides);
-await call("summary", { method: "PUT", body: JSON.stringify(summary) });
-const unmatched = summary.totals.unmatched ? `, ${summary.totals.unmatched} unmatched legs` : "";
-console.log(`Summary: ${summary.totals.journeys} rail journeys, ${summary.totals.km} km${unmatched}`);
+const { totals } = summarize(net, journeys, overrides);
+const unmatched = totals.unmatched ? `, ${totals.unmatched} unmatched legs` : "";
+console.log(`Now live: ${totals.journeys} rail journeys, ${totals.km} km${unmatched}`);

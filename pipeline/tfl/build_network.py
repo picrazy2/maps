@@ -51,6 +51,10 @@ RELATION_MATCH = {
 }
 
 
+# Longest jump drawn to join two rides of a line at a station. Longer means separate platforms.
+BRIDGE_M = 120
+
+
 def metres(a, b):
     kx = 111320 * math.cos(math.radians((a[1] + b[1]) / 2))
     return math.hypot((a[0] - b[0]) * kx, (a[1] - b[1]) * 110540)
@@ -225,28 +229,76 @@ def main():
     merge_hubs(stops)
     print(f"{len(ways)} ways, {len(coord)} nodes, {len(stops)} stops, {len(lines)} lines, {len(rides)} rides", flush=True)
 
-    # Short rides first, so long express rides reuse the track the stopping services settled on.
-    order = sorted(rides, key=lambda k: metres(
-        (stops[k[1]]["lon"], stops[k[1]]["lat"]), (stops[k[2]]["lon"], stops[k[2]]["lat"])))
+    # Walk each line outward from stops it has already reached, reusing the same node at every
+    # stop. Consecutive rides then join exactly and stay on one of the parallel tracks. Picking
+    # the nearest node per ride instead left visible gaps and offsets at stations.
+    def gap_of(key):
+        return metres((stops[key[1]]["lon"], stops[key[1]]["lat"]), (stops[key[2]]["lon"], stops[key[2]]["lat"]))
+
+    def ends_for(stop, anchor, radius):
+        return [(anchor[stop], 0)] if stop in anchor else grid.near(stops[stop]["lon"], stops[stop]["lat"], radius)
+
+    def path_km(nodes):
+        return sum(metres(coord[p], coord[q]) for p, q in zip(nodes, nodes[1:])) / 1000
+
     used, paths, straight = set(), {}, []
-    for key in order:
-        line, a, b = key
-        mode = rides[key]
-        sa, sb = stops[a], stops[b]
-        gap = metres((sa["lon"], sa["lat"]), (sb["lon"], sb["lat"]))
-        path = None
-        for radius in (250, 600):
-            src, dst = grid.near(sa["lon"], sa["lat"], radius), grid.near(sb["lon"], sb["lat"], radius)
-            if src and dst:
-                path = route(adj, coord, src, dst, line, mode, used, gap * 4 + 4000)
-                if path:
-                    break
-        if not path or len(path) < 2:
-            straight.append(key)
-            continue
-        paths[key] = path
-        for p, q in zip(path, path[1:]):
-            used.add((p, q) if p < q else (q, p))
+    bridged = 0
+    by_line = defaultdict(list)
+    for key in rides:
+        by_line[key[0]].append(key)
+    for line_id, keys in by_line.items():
+        mode = lines[line_id]["mode"]
+        anchor, todo = {}, sorted(keys, key=gap_of)
+        while todo:
+            # Shortest ride touching the reached part of the line, else start a new component.
+            key = next((k for k in todo if k[1] in anchor or k[2] in anchor), todo[0])
+            todo.remove(key)
+            _, a, b = key
+            limit = gap_of(key) * 4 + 4000
+
+            def free_route(max_cost):
+                for radius in (250, 600):
+                    src = grid.near(stops[a]["lon"], stops[a]["lat"], radius)
+                    dst = grid.near(stops[b]["lon"], stops[b]["lat"], radius)
+                    found = route(adj, coord, src, dst, line_id, mode, used, max_cost) if src and dst else None
+                    if found:
+                        return found
+                return None
+
+            path = None
+            for radius in (250, 600):
+                src, dst = ends_for(a, anchor, radius), ends_for(b, anchor, radius)
+                if src and dst:
+                    path = route(adj, coord, src, dst, line_id, mode, used, limit)
+                    if path:
+                        break
+            # A line can use separate tracks through one station, such as Northern line branches
+            # at Euston. If the fixed node forces a detour or dead end, take the direct track and
+            # bridge only hops short enough to be the same platforms.
+            pinned = a in anchor or b in anchor
+            if pinned:
+                direct = free_route(limit)
+                if direct and (not path or path_km(path) > path_km(direct) * 1.25 + 0.2):
+                    path, split = direct, []
+                    for stop, side in ((a, 0), (b, -1)):
+                        if stop in anchor and anchor[stop] != path[side]:
+                            hop = metres(coord[anchor[stop]], coord[path[side]])
+                            split.append((stop, side, hop))
+                    bridged += 1
+                    for stop, side, hop in split:
+                        if hop < BRIDGE_M:
+                            path = [anchor[stop], *path] if side == 0 else [*path, anchor[stop]]
+            if not path:
+                path = free_route(gap_of(key) * 10 + 8000)
+            if not path or len(path) < 2:
+                straight.append(key)
+                continue
+            anchor.setdefault(a, path[0])
+            anchor.setdefault(b, path[-1])
+            paths[key] = path
+            for p, q in zip(path, path[1:]):
+                used.add((p, q) if p < q else (q, p))
+    print(f"bridged {bridged}", flush=True)
     print(f"snapped {len(paths)}, straight fallback {len(straight)}", flush=True)
 
     # Split into shared segments at path ends and at junctions in the used network.
@@ -288,6 +340,10 @@ def main():
             km = sum(metres(coord[p], coord[q]) for p, q in zip(path, path[1:])) / 1000
             cut = [i for i, n in enumerate(path) if n in breaks or i in (0, len(path) - 1)]
             segs = [seg_id(path[i:j + 1]) for i, j in zip(cut, cut[1:])]
+        else:
+            # OSM has no connected track here, so draw the hop straight rather than leave a hole.
+            segs = [len(seg_coords)]
+            seg_coords.append([[round(s["lon"] * 1e5), round(s["lat"] * 1e5)] for s in (sa, sb)])
         minutes = km / SPEED_KMH[mode] * 60 + (1.0 if mode == "national-rail" else 0.6)
         out_rides.append([line_idx[line], stop_idx[a], stop_idx[b], round(minutes, 1), round(km, 2), segs])
 
