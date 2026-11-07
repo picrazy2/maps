@@ -1,6 +1,6 @@
 import { icon } from "/london/icons.js";
 import { Sheet } from "/london/sheet.js";
-import { buildNetwork, legKey, legsOf, odKey, resolveStation, routeLeg, summarize, weekOf } from "./routing.js";
+import { buildNetwork, legKey, legsOf, odKey, resolveStation, routeLeg, summarize, weekOf } from "./routing.js?v=20261107";
 
 const OFM = "https://tiles.openfreemap.org/styles";
 // The flightlog Supabase project, used only for Google sign-in. The anon key is public by design.
@@ -670,7 +670,7 @@ async function boot() {
   render();
   sheet.set("half", false);
   const [raw, data] = await Promise.all([
-    fetch("/tfl/data/network.json").then((r) => r.json()),
+    fetch("/tfl/data/network.json?v=20261107").then((r) => r.json()),
     fetch("/tfl/api/journeys").then((r) => r.json()),
   ]);
   state.net = buildNetwork(raw);
