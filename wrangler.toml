@@ -7,3 +7,10 @@ pages_build_output_dir = "public"
 #                    Optional: without it, place search is hidden and boundary /
 #                    postcode search still works.
 # For local dev put it in .dev.vars (gitignored).
+
+# TfL rail history (/tfl). The KV namespace holds the public summary and, behind
+# TFL_ADMIN_TOKEN, individual journeys and route overrides.
+#   TFL_ADMIN_TOKEN  set with `wrangler pages secret put TFL_ADMIN_TOKEN`; locally in .dev.vars.
+[[kv_namespaces]]
+binding = "TFL"
+id = "6e155346a3024921a1e84c6d7f2ab54c"

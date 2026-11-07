@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TfL Rail History</title>
+  <meta name="description" content="Rail journeys on an Oyster card, snapped to OpenStreetMap track, with busier track drawn thicker.">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/london/icon.svg" type="image/svg+xml">
+  <script>
+    document.documentElement.dataset.theme =
+      matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="/london/styles.css">
+  <link rel="stylesheet" href="/tfl/tfl.css">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+  <div id="map" aria-label="Map of rail journeys"></div>
+
+  <div class="controls">
+    <div class="pill glass">
+      <button id="btn-colour" class="focus-ring" aria-label="Colour track by line" aria-pressed="true"></button>
+      <button id="btn-fit" class="focus-ring" aria-label="Fit all journeys"></button>
+    </div>
+    <div class="pill glass zoom-pill">
+      <button id="btn-zoom-in" class="focus-ring" aria-label="Zoom in"></button>
+      <button id="btn-zoom-out" class="focus-ring" aria-label="Zoom out"></button>
+    </div>
+  </div>
+
+  <section id="sheet" class="sheet glass-thick" aria-label="Journey statistics">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <div class="sheet-head" id="sheet-head"></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </section>
+
+  <div id="tip" class="tip glass hidden" role="status"></div>
+  <div id="toast" class="toast glass is-hidden" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/tfl/app.js"></script>
+</body>
+</html>
